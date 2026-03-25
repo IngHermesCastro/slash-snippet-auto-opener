@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Slash Snippet Auto-Opener",
+  "version": "1.0.0",
+  "description": "Press '/' to instantly open the snippet panel. Senior-grade Chrome extension.",
+  "author": "Hermes Castro",
+  "homepage_url": "https://hermescastro.com",
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["dist/content/content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "dist/background/service-worker.js"
+  }
+}

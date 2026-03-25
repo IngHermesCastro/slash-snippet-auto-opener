@@ -1,0 +1,21 @@
+{
+  "name": "slash-snippet-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension to auto-open snippet panel on '/' keystroke",
+  "type": "module",
+  "author": "Hermes Castro (https://hermescastro.com)",
+  "homepage": "https://hermescastro.com",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/content/content.ts src/background/service-worker.ts --bundle --outdir=dist --target=es2020 --platform=browser",
+    "watch": "esbuild src/content/content.ts src/background/service-worker.ts --bundle --outdir=dist --target=es2020 --platform=browser --watch",
+    "dev": "npm run watch",
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.260",
+    "esbuild": "^0.19.0",
+    "typescript": "^5.3.3"
+  }
+}
