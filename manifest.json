@@ -5,6 +5,11 @@
   "description": "Press '/' to instantly open the snippet panel. Senior-grade Chrome extension.",
   "author": "Hermes Castro",
   "homepage_url": "https://hermescastro.com",
+  "icons": {
+    "16": "icons/icon128.png",
+    "48": "icons/icon128.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "scripting",
     "activeTab"
