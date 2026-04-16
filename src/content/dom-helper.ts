@@ -17,17 +17,21 @@ export class DOMHelper {
 
     for (const selector of selectors) {
       try {
-        const element = document.querySelector<HTMLElement>(selector);
-        if (!element) continue;
+        const elements = document.querySelectorAll<Element>(selector);
+        if (!elements.length) {
+          continue;
+        }
 
-        // If we found an SVG, use its parent (likely the clickable container)
-        const targetElement = element.closest<HTMLElement>(
-          'button, [role="button"], [tabindex], div.cursor-pointer'
-        ) ?? (element.tagName.toLowerCase() === 'svg' ? element.parentElement : element);
-
-        if (targetElement && this.isVisible(targetElement)) {
-          logger.info('Found snippet button', { selector, elementTag: targetElement.tagName });
-          return targetElement;
+        for (const element of Array.from(elements)) {
+          const targetElement = this.resolveClickableTarget(element);
+          if (targetElement && this.isVisible(targetElement)) {
+            logger.info('Found snippet button', {
+              selector,
+              elementTag: targetElement.tagName,
+              className: targetElement.className,
+            });
+            return targetElement;
+          }
         }
       } catch (error) {
         logger.warn('Invalid selector', { selector, error: String(error) });
@@ -37,8 +41,9 @@ export class DOMHelper {
     // Fallback: search by text content in buttons
     const buttons = document.querySelectorAll<HTMLButtonElement>('button');
     for (const button of Array.from(buttons)) {
+      const buttonText = button.textContent?.toLowerCase() ?? '';
       if (
-        button.textContent?.toLowerCase().includes('snippet') &&
+        (buttonText.includes('snippet') || buttonText.includes('fragment')) &&
         this.isVisible(button)
       ) {
         logger.info('Found snippet button by text content');
@@ -51,11 +56,38 @@ export class DOMHelper {
   }
 
   /**
+   * Resolves SVG/path/icon matches to the clickable wrapper that actually receives the event.
+   */
+  private static resolveClickableTarget(element: Element): HTMLElement | null {
+    if (!(element instanceof HTMLElement) && !(element instanceof SVGElement)) {
+      return null;
+    }
+
+    const explicitClickable = element.closest('button, [role="button"], [tabindex], .cursor-pointer');
+    if (explicitClickable instanceof HTMLElement) {
+      return explicitClickable;
+    }
+
+    if (explicitClickable instanceof SVGElement) {
+      return explicitClickable.parentElement;
+    }
+
+    if (element instanceof SVGElement) {
+      const nearestWrapper = element.parentElement?.closest<HTMLElement>(
+        'button, [role="button"], [tabindex], div.cursor-pointer, .icon-wrapper'
+      );
+      return nearestWrapper ?? element.parentElement;
+    }
+
+    return element.closest<HTMLElement>('.icon-wrapper') ?? element;
+  }
+
+  /**
    * Checks if an element is actually visible in the viewport
    * @param element - Element to check
    * @returns true if visible, false otherwise
    */
-  static isVisible(element: HTMLElement): boolean {
+  static isVisible(element: Element): boolean {
     const style = window.getComputedStyle(element);
     const rect = element.getBoundingClientRect();
 
@@ -75,21 +107,27 @@ export class DOMHelper {
    * @param element - Element to click
    * @returns true if click was successful
    */
-  static simulateClick(element: HTMLElement): boolean {
+  static simulateClick(element: Element): boolean {
     try {
-      // Ensure element is focused first
-      element.focus();
-      logger.debug('Element focused');
+      const rect = element.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
 
-      // Strategy 1: Dispatch all pointer events (for modern frameworks)
-      this.dispatchPointerEvents(element);
+      // Do not force focus before click; the real control is an aria-hidden svg.
+      this.dispatchPointerEvents(element, clientX, clientY);
+      this.dispatchMouseEvents(element, clientX, clientY);
 
-      // Strategy 2: Dispatch mouse events for compatibility
-      this.dispatchMouseEvents(element);
-
-      // Strategy 3: Direct HTMLElement.click()
-      element.click();
-      logger.debug('Click simulated via element.click()');
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window,
+        button: 0,
+        buttons: 0,
+        clientX,
+        clientY,
+      });
+      element.dispatchEvent(clickEvent);
+      logger.debug('Click simulated via dispatched click event');
 
       // Mark element as having been triggered by this extension
       element.setAttribute(EXTENSION_NS + '-triggered', 'true');
@@ -105,7 +143,7 @@ export class DOMHelper {
    * Dispatches pointer events (for Vue 3 and modern frameworks)
    * @param element - Target element
    */
-  private static dispatchPointerEvents(element: HTMLElement): void {
+  private static dispatchPointerEvents(element: Element, clientX: number, clientY: number): void {
     const pointerEvents = ['pointerdown', 'pointerup'];
 
     for (const eventType of pointerEvents) {
@@ -116,6 +154,8 @@ export class DOMHelper {
         pointerId: 1,
         pointerType: 'mouse',
         isPrimary: true,
+        clientX,
+        clientY,
       });
 
       element.dispatchEvent(event);
@@ -128,7 +168,7 @@ export class DOMHelper {
    * Dispatches mouse events to simulate a natural click
    * @param element - Target element
    */
-  private static dispatchMouseEvents(element: HTMLElement): void {
+  private static dispatchMouseEvents(element: Element, clientX: number, clientY: number): void {
     const events = ['mousedown', 'mouseup'];
 
     for (const eventType of events) {
@@ -137,6 +177,9 @@ export class DOMHelper {
         cancelable: true,
         view: window,
         buttons: eventType === 'mousedown' ? 1 : 0,
+        button: 0,
+        clientX,
+        clientY,
       });
 
       element.dispatchEvent(event);
